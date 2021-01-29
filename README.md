@@ -12,16 +12,20 @@ Reference material related to the Zedboard can be found [here](https://reference
 [Zedboard Pin Assignment](https://reference.digilentinc.com/_media/reference/programmable-logic/zedboard/zedboard_ug.pdf)\
 [Zedboard Schematic](https://reference.digilentinc.com/_media/reference/programmable-logic/zedboard/zedboard_sch.pdf)
 
+![Complete Schematic](imgs/i1.png)
+
 ## PL Setup
 
 The first step is to set up the FPGA's PL (Programmable Logic, the FPGA's reprogrammable hardware). While everything will be controlled from the PS (Processing System, the ARM core inside the FPGA), the PL is required to route the signals that the PS generates to the appropriate pins, and to generate signals that the PS is unable to create.
 
 The PL setup is done using Vivado. A quick start guide can be found [here](https://reference.digilentinc.com/vivado/getting_started/start).
 
-1. Create a new Vivado project that targets the Zedboard.
+1. Create a new Vivado project that targets the Zedboard.\
+   ![New Zedboard Project](imgs/i2.png)
 2. Include the constraints file and the Verilog file found in the `PL/` directory.
 3. Create a new block design.
-4. Add a Zynq Processing System to the block design and run block automation.
+4. Add a Zynq Processing System to the block design and run block automation.\
+   ![Zynq Block](imgs/i3.png)
 
 ### OLED Wiring
 
@@ -37,17 +41,30 @@ The Zynq-7000 has a feature called EMIO, which allows it to send and receive dat
 
 In a full SPI implementation, multiple master and slave devices can be connected using the same wires. A special "chip select" wire is used by a master to tell a specific slave that it is sending data only to it. In addition, if other masters see that a specific slave's "slave select" line is toggled, they will not send any messages to that slave to avoid interference. In SPI, the "slave select" line is active low. Therefore, if the ARM core's SPI controller detects that the OLED's "slave select" is low, it will believe that another master is talking to the OLED, and it will not send any data. Hence, it is necessary to tie the ARM core's "slave select" line to 1, so that the controller will transmit data.
 
-1. Double-click the Zynq to customize it.
-   1. In MIO Configuration, I/O Peripherals, enable SPI 0 connected to EMIO.
-   2. In MIO Configuration, I/O Peripherals, enable EMIO GPIO of width 2. These will be used for the OLED reset and control signals.
+1. Double-click the Zynq to customize it.\
+   ![Customize Zynq](imgs/i4.png)
+   1. In MIO Configuration, I/O Peripherals, enable SPI 0 connected to EMIO.\
+      ![SPI Config](imgs/i5.png)
+   2. In MIO Configuration, I/O Peripherals, enable EMIO GPIO of width 2. These will be used for the OLED reset and control signals.\
+      ![GPIO Config](imgs/i6.png)
    3. Click OK and exit.
-2. The Zynq block now has new output connections.
-3. In the block design, create new output ports called `OLED_DC`, `OLED_RES`, `OLED_SCLK`, `OLED_SDIN`. They are connected to the OLED pins in lines 136-139 of the constraints file.
-5. Add a Constant IP to the block design. Double click it, and configure it to output the constant value 1 of width 1.
-6. Expand the `SPI_0` output of the Zynq block. Connect the output of the Constant IP to `SPI0_SS_I` (the SPI slave select signal). Connect `SPI0_MOSI_O` to `OLED_SDIN` (the SPI data signal). Connect `SPI0_SCLK_O` to `OLED_SCLK` (the SPI clock signal).
-7. Add two Slice IPs. For both, set `Din Width` to 2. For one slice, set `Din From` and `Din Down To` to 0, for the other, set `Din From` and `Din Down To` to 1.
-8. Connect `GPIO_O` to both Slice IPs. Connect the output of the Slice that captures `GPIO_O[0]` to `OLED_RES`. Connect the output of the Slice that captures `GPIO_O[1]` to `OLED_DC`.
-9. The Wiring for the OLED is ready, and should look like this.
+2. The Zynq block now has new output connections.\
+   ![New Connections](imgs/i7.png)
+3. In the block design, create new output ports called `OLED_DC`, `OLED_RES`, `OLED_SCLK`, `OLED_SDIN`. They are connected to the OLED pins in lines 136-139 of the constraints file.\
+   ![Ports](imgs/i8.png)
+5. Add a Constant IP to the block design. Double click it, and configure it to output the constant value 1 of width 1.\
+   ![Constant IP](imgs/i9.png)\
+   ![IP Config](imgs/i10.png)
+6. Expand the `SPI_0` output of the Zynq block. Connect the output of the Constant IP to `SPI0_SS_I` (the SPI slave select signal). Connect `SPI0_MOSI_O` to `OLED_SDIN` (the SPI data signal). Connect `SPI0_SCLK_O` to `OLED_SCLK` (the SPI clock signal).\
+   ![SPI Connect](imgs/i11.png)
+7. Add two Slice IPs. For both, set `Din Width` to 2. For one slice, set `Din From` and `Din Down To` to 0, for the other, set `Din From` and `Din Down To` to 1.\
+   ![Slice IPs](imgs/i12.png)\
+   ![Config 1](imgs/i13.png)\
+   ![Config 2](imgs/i14.png)
+8. Connect `GPIO_O` to both Slice IPs. Connect the output of the Slice that captures `GPIO_O[0]` to `OLED_RES`. Connect the output of the Slice that captures `GPIO_O[1]` to `OLED_DC`.\
+   ![Slice Wiring](imgs/i15.png)
+9. The Wiring for the OLED is ready, and should look like this.\
+   ![OLED Wiring](imgs/i16.png)
 10. Only if the HDMI is not being implemented, connect `FCLK_CLK0` to `M_AXI_GP0_ACKL`, create the HDL wrapper, generate bitstream, export hardware.
 
 ### HDMI Wiring
@@ -75,21 +92,46 @@ The ADV7511 supports many different features, and it must be configured before i
 Finally, the goal is to have a system that runs at 1080p at 60 Hz. All of the IPs will be configured to operate at one pixel per clock cycle. For simplicity, everything will run on the same clock. In order to generate the right amount of throughput to send all of the pixels on time and to satisfy the blanking period, for 1080p at 60 Hz, we will need the clock to run at exactly 148.5 MHz (see [here](https://projectf.io/posts/video-timings-vga-720p-1080p/) for all the numbers).
 
 1. Double-click the Zynq to customize it.
-   1. In PS-PL Configuration, HP Slave AXI interface, enable S AXI HP0. This will be the port that the VDMA IP uses to read from DDR memory.
-   2. In MIO Configuration, I/O Peripherals, enable I2C 0 connected to EMIO.
+   1. In PS-PL Configuration, HP Slave AXI interface, enable S AXI HP0. This will be the port that the VDMA IP uses to read from DDR memory.\
+      ![HP Config](imgs/i17.png)
+   2. In MIO Configuration, I/O Peripherals, enable I2C 0 connected to EMIO.\
+      ![I2C Config](imgs/i18.png)
    3. Click OK and exit.
-2. The Zynq block now has new output connections.
-3. Left click once on the IIC_0 port on the Zynq block. Right-click, select "Create Interface Port" and name it HD_IIC. They are connected to the ADV7511 IIC pins on lines 166-167 of the constraint file. Note: an easy way to get the full name of an interface port (`HD_IIC_scl_io` and `HD_IIC_sda_io`) is to create the HDL wrapper and look at the generated Verilog file.
-4. Add a Clocking Wizard IP. Double-click it to configure it. In Output Clocks set clock_out1 to be 148.5 MHz. At bottom of the Output Clocks page, disable the "reset" and "locked" output. Run connection automation to connect the Clocking Wizard to `sys_clock`.
-5. Add an AXI Video Direct Memory Access IP. Double-click to configure it. In the Basic page, set Frame Buffers to 1. Disable the Write channel. In the Read channel, set Stream Data Width to 16. In the Advanced page, set GenLock Mode to Master.
-6. Add an AXI4-Stream to Video Out IP. Double-click to configure it. Set Video Format to YUV 4:2:2.
+2. The Zynq block now has new output connections.\
+   ![Zynq Connections](imgs/i19.png)
+3. Left-click once on the IIC_0 port on the Zynq block, then right-click, select "Create Interface Port" and name it HD_IIC. They are connected to the ADV7511 IIC pins on lines 166-167 of the constraint file. Note: an easy way to get the full name of an interface port (`HD_IIC_scl_io` and `HD_IIC_sda_io`) is to create the HDL wrapper and look at the generated Verilog file.\
+   ![Left-click](imgs/i20.png)\
+   ![Create Interface Port](imgs/i21.png)\
+   ![I2C Wiring](imgs/i22.png)
+4. Add a Clocking Wizard IP. Double-click it to configure it. In Output Clocks set clock_out1 to be 148.5 MHz. At bottom of the Output Clocks page, disable the "reset" and "locked" output. Run connection automation to connect the Clocking Wizard to `sys_clock`.\
+   ![Clocking Wizard](imgs/i23.png)\
+   ![Set Output Clock](imgs/i24.png)\
+   ![Disable Ports](imgs/i25.png)\
+   ![Clocking Wizard Connected](imgs/i26.png)
+5. Add an AXI Video Direct Memory Access IP. Double-click to configure it. In the Basic page, set Frame Buffers to 1. Disable the Write channel. In the Read channel, set Stream Data Width to 16. In the Advanced page, set GenLock Mode to Master.\
+   ![VDMA Basic Config](imgs/i27.png)\
+   ![VDMA Advanced Config](imgs/i28.png)
+6. Add an AXI4-Stream to Video Out IP. Double-click to configure it. Set Video Format to YUV 4:2:2.\
+   ![AXI4-Stream to Video Out Config](imgs/i29.png)
 7. Add a Video Timing Controller IP. Double-click to configure it. In the Detection/Generation page, disable the AXI4-Lite interface and disable Detection. In the Default/Constant page, set video mode to 1080p.
-8. The block design should now look like this.
-9. Connect the output of the Clocking Wizard to `M_AXI_GP0_ACLK` and `S_AXI_HP0_ACLK` on the Zynq block, to all three clock inputs on the VDMA, to `aclk` on the AXI4-Stram to Video Out, and to `clk` on the Video Timing Controller.
-10. Connect the VDMA's `M_AXIS_MM2S` to `video_in` and the VTC's `vtiming_out` into `vtiming_in`.
-11. Run all connection automations. 
-12. You may need to manually connect the output of the reset block into the `resetn` input of the VTC and the `aresetn` input of the AXI4-Stram to Video Out.
-13. Connect the `vtg_ce` output of the AXI4-Stram to Video Out IP to `gen_clken` on the VTC.
-14. Right click on the block design and click Add Module. Add the `video_to_zedboard` module. Connect it.
-15. Create a new output port called `HD_CLK` and connect it to the output of the Clocking Wizard.
-16. The block design is now done! Create HDL wrapper, generate bitstream, export hardware.
+   ![Detection/Generation Config](imgs/i30.png)\
+   ![Default/Constant Config](imgs/i31.png)
+8. The block design should now look like this.\
+   ![Unconnected Block Design](imgs/i32.png)
+9. Connect the output of the Clocking Wizard to `M_AXI_GP0_ACLK` and `S_AXI_HP0_ACLK` on the Zynq block, to all three clock inputs on the VDMA, to `aclk` on the AXI4-Stram to Video Out, and to `clk` on the Video Timing Controller.\
+   ![Clock Connection](imgs/i33.png)
+10. Connect the VDMA's `M_AXIS_MM2S` to `video_in` and the VTC's `vtiming_out` into `vtiming_in`.\
+    ![AXI4-Stream Connect](imgs/i34.png)
+11. Run all connection automations.\
+    ![Connection Automation](imgs/i35.png)
+12. You may need to manually connect the output of the reset block into the `resetn` input of the VTC and the `aresetn` input of the AXI4-Stram to Video Out.\
+    ![Reset Connect](imgs/i36.png)
+13. Connect the `vtg_ce` output of the AXI4-Stram to Video Out IP to `gen_clken` on the VTC.\
+    ![Clock Enable Connect](imgs/i36.png)
+14. Right click on the block design and click Add Module. Add the `video_to_zedboard` module. Connect it.\
+    ![Add Module](imgs/i37.png)\
+    ![Connect Module](imgs/i38.png)
+15. Create a new output port called `HD_CLK` and connect it to the output of the Clocking Wizard.\
+    ![HD_CLK Connect](imgs/i39.png)
+16. The block design is now done! Create HDL wrapper, generate bitstream, export hardware.\
+    ![Block Design](imgs/i1.png)
