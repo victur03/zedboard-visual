@@ -104,7 +104,6 @@ Finally, the goal is to have a system that runs at 1080p at 60 Hz. All of the IP
    ![Create Interface Port](imgs/i21.png)\
    ![I2C Wiring](imgs/i22.png)
 4. Add a Clocking Wizard IP. Double-click it to configure it. In Output Clocks set clock_out1 to be 148.5 MHz. At bottom of the Output Clocks page, disable the "reset" and "locked" output. Run connection automation to connect the Clocking Wizard to `sys_clock`.\
-   ![Clocking Wizard](imgs/i23.png)\
    ![Set Output Clock](imgs/i24.png)\
    ![Disable Ports](imgs/i25.png)\
    ![Clocking Wizard Connected](imgs/i26.png)
@@ -127,11 +126,11 @@ Finally, the goal is to have a system that runs at 1080p at 60 Hz. All of the IP
 12. You may need to manually connect the output of the reset block into the `resetn` input of the VTC and the `aresetn` input of the AXI4-Stram to Video Out.\
     ![Reset Connect](imgs/i36.png)
 13. Connect the `vtg_ce` output of the AXI4-Stram to Video Out IP to `gen_clken` on the VTC.\
-    ![Clock Enable Connect](imgs/i36.png)
+    ![Clock Enable Connect](imgs/i37.png)
 14. Right click on the block design and click Add Module. Add the `video_to_zedboard` module. Connect it.\
-    ![Add Module](imgs/i37.png)\
-    ![Connect Module](imgs/i38.png)
+    ![Add Module](imgs/i38.png)\
+    ![Connect Module](imgs/i39.png)
 15. Create a new output port called `HD_CLK` and connect it to the output of the Clocking Wizard.\
-    ![HD_CLK Connect](imgs/i39.png)
+    ![HD_CLK Connect](imgs/i40.png)
 16. The block design is now done! Create HDL wrapper, generate bitstream, export hardware.\
     ![Block Design](imgs/i1.png)
