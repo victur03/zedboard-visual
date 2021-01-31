@@ -134,3 +134,15 @@ Finally, the goal is to have a system that runs at 1080p at 60 Hz. All of the IP
     ![HD_CLK Connect](imgs/i40.png)
 16. The block design is now done! Create HDL wrapper, generate bitstream, export hardware.\
     ![Block Design](imgs/i1.png)
+
+## PS Setup
+
+Once the block design is done, import the hardware into Vitis, create a new empty project, and copy the C sources into the project.
+
+To use the HDMI component, first prepare an image to be displayed on the device. Run the `image-to-memory-map.py` script, which will convert the provided image into a file called `image.h`. This file contains a memory map of the image. Include this `image.h` file in the sources.
+
+
+
+### OLED Files
+
+
