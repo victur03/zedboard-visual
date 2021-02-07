@@ -37,7 +37,7 @@ int main() {
 		// Configure MM2S_VDMACR to 0x8B
 		Xil_Out32(XPAR_AXI_VDMA_0_BASEADDR + 0x00, 0x8B);
 
-		// Set the start addresses of the 3 frame buffers
+		// Set the start addresses of the frame buffer. Must be aligned to 64 bytes.
 		Xil_Out32(XPAR_AXI_VDMA_0_BASEADDR + 0x5C, (u32)&image_data); // MM2S_Start_Address1 0x10000000
 
 		// Set the video resolution
