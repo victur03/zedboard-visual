@@ -137,12 +137,35 @@ Finally, the goal is to have a system that runs at 1080p at 60 Hz. All of the IP
 
 ## PS Setup
 
-Once the block design is done, import the hardware into Vitis, create a new empty project, and copy the C sources into the project.
+Once the block design is done, import the hardware into Vitis, create a new empty project, and copy the C sources into the project. By default, the C sources contain the code for both the HDMI and OLED controllers. To disable one of them, simply edit the `main.c` file.
 
-To use the HDMI component, first prepare an image to be displayed on the device. Run the `image-to-memory-map.py` script, which will convert the provided image into a file called `image.h`. This file contains a memory map of the image. Include this `image.h` file in the sources.
+To use the HDMI component, first pick the image that the device will display on the screen. Run the `image-to-memory-map.py` script, which will converts the provided image into a file called `image.h`. This file contains a memory map of the image. Include this `image.h` file in the sources.
 
+In addition, **the HDMI cable must be connected before flashing the bitstream**. The ADV7511 can only be activated if the cable is connected.
 
+### OLED Functions
 
-### OLED Files
+All OLED-related functions are found in the `ps_emio.h`, `ps_emio.c` and `oled_font.h` files.
 
+The files `ps_emio.h` and `ps_emio.c` implement the following three functions:
+- `int init_ps_emio()`. This function initializes the ARM core's SPI and GPIO controllers, and sends a turn-on command to the OLED display.
+- `void cleanup_ps_emio()`. This function sends a turn-off command to the OLED display.
+- `void oled_printstr(char *str)`. This function prints the null-terminated string `*str`. If the string is too long, it will be truncated.
 
+The file `oled_font.h` describes the font to be displayed on the OLED.
+
+### HDMI Functions
+
+All HDMI-related functions are found in the `zed_hdmi.h` and `zed_hdmi.c` files.
+
+They implement the following functions:
+- `int init_hdmi_interface()`. This function intitializes the ARM core's I2C controller, and sends all the configuration information to the ADV7511.
+- `void cleanup_hdmi_interface()`. This function sends a shutdown command to the ADV7511.
+
+Finally, the VDMA module is configured in the `main.c` file. It needs to know the address of the image to display, and the resolution.
+
+## Additonal Resources
+
+The Xilinx Video IP ecosystem is described in detail in the [Xilinx Video Series](https://forums.xilinx.com/t5/Video-and-Audio/Xilinx-Video-Series/td-p/849583) of tutorials.
+
+Other tutorials related to the Zedboard and the Zynq can be found in [Adam Taylor’s MicroZed(ish) Chronicles](https://forums.xilinx.com/t5/Xcell-Daily-Blog-Archived/Adam-Taylor-s-MicroZed-ish-Chronicles-Part-84-Simple/ba-p/631697).
