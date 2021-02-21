@@ -1,4 +1,4 @@
-# Zedboard HDMI and OLED Tutorial (In Progress)
+# Zedboard HDMI and OLED Tutorial
 
 The goal of this tutorial is to show how to program the Zedboard in order to display images over HDMI and to display text on its built-in OLED display.\
 Both the OLED and HDMI will be controlled from software by the ARM core inside the Zynq-7000.
@@ -71,39 +71,39 @@ In a full SPI implementation, multiple master and slave devices can be connected
 
 The HDMI link is handled by an ADV7511 chip ([reference](https://www.analog.com/media/en/technical-documentation/user-guides/ADV7511_Hardware_Users_Guide.pdf)).
 
-To protect copyrighted material, HDMI supports encrypting all of the data sent over an HDMI cable so that it cannot be copied. This encryption is secret, so in order to be able to use an HDMI interface, Analog Devices provides the ADV7511, which accepts regular unencrypted video, and which takes care of the HDMI encryption internally.
+To protect copyrighted material, HDMI supports encrypting all of the data sent over an HDMI cable so that it cannot be copied. This encryption is proprietary, so in order to be able to use an HDMI interface, Analog Devices provides the ADV7511, which accepts regular unencrypted video, and which takes care of the HDMI encryption internally.
 
 There are many ways of transmitting video data. The basic idea is similar to the OLED interface: there is one clock line, and multiple data lines. On each rising edge of the clock line, the ADV7511 reads the values of the data lines. The ADV7511 supports multiple ways to encode pixel data, for example, it supports having 24 input lines, which correspond to a 24-bit input. Each 24-bit value represents the color of one pixel: the first 8 bits are the red brightness, then the green brightness, and then the blue brightness.
 
-Unfortunately, the Zedboard schematic shows that not all of the ADV7511's input pins are connected to the FPGA. With the available input pins, the best input data format is "YCrCb 4:2:2 with Input ID = 1, Style = 3, Right Justified" (table 7 in the reference). On each rising edge of the clock, the ADV7511 receives 16 bits of data, which correspond to data for one pixel. The first 8 bits are the overall brightness of the pixel, and the next 8 bits represent the color of the pixel.\ 
-Unlike RGB which encodes pixels by their red, green and blue values, YCrCb encodes pixels by their overall brightness, and their red and blue values. The overall brightness of a pixel is a linear combination of its red, green and blue values, so the green values can then be deduced from the overall brightness and the other two colors. The 4:2:2 indication implies that colors are subsampled, which means that the 8 color bits alternate between being the red and the blue values. So two neighboring pixels can have different brightnesses, but they will have the same color: the red value comes from the first pixel, and the blue value comes from the second.
+Unfortunately, the Zedboard schematic shows that not all of the ADV7511's input pins are connected to the FPGA. With the available input pins, the best input data format is "YCrCb 4:2:2 with Input ID = 1, Style = 3, Right Justified" (table 7 in the reference). On each rising edge of the clock, the ADV7511 receives 16 bits of data, which correspond to data for one pixel. The first 8 bits are the overall brightness of the pixel, and the next 8 bits represent the color of the pixel.\
+Unlike RGB which encodes pixels by their red, green and blue values, YCrCb encodes pixels by their overall brightness, and their red and blue values. The overall brightness of a pixel is a linear combination of its red, green and blue values, so the green values can then be deduced from the overall brightness and the other two colors. The 4:2:2 indication implies that colors are subsampled, which means that the 8 color bits alternate between being the red and the blue values. So two neighboring pixels can have different brightness values, but they will have the same color: the red value comes from the first pixel, and the blue value comes from the second.
 
-The ADV7511 receives a stream of raw pixel data. The pixels are sent line-by-line. However, it also needs synchronization data to know where each of the received pixels should be located on the screen. For this, the ADV7511 receives additional signals called `HSYNC` and `VSYNC`, which provide this synchronization information. These signals date back to CRT TVs, and are tricky to implement, since they need to satisfy some precise timing conditions. In additon to these signals, there also need to be "blanking periods" between successive frames where no data is getting sent. Luckily, Xilinx provides the "AXI4-Stream to Video Out" and "Video Timing Controller" IPs that are capable of generating these timing signals and pausing the video stream during the blanking periods.
+The ADV7511 receives a stream of raw pixel data. The pixels are sent line-by-line. However, it also needs synchronization data to know where each of the received pixels should be located on the screen. For this, the ADV7511 receives additional signals called `HSYNC` and `VSYNC`, which provide this synchronization information. In addition to these signals, there also need to be "blanking periods" between successive frames where no data is getting sent. Luckily, Xilinx provides the "AXI4-Stream to Video Out" and "Video Timing Controller" IPs that are capable of generating these timing signals and pausing the video stream during the blanking periods.
 
 In addition to these timing-related IPs, Xilinx provides many different IPs for video processing. All of these IPs send and receive video data using AXI4-Stream interfaces. The full specification for how Xilinx IPs send video data over AXI4-Stream can be found in [UG934](https://www.xilinx.com/support/documentation/ip_documentation/axi_videoip/v1_0/ug934_axi_videoIP.pdf).\
 An AXI4-Stream is a unidirectional data stream from a master to a slave. Like for the ADV7511, the stream has a clock line called `ACLK` and multiple data lines called `TDATA`. On each rising edge of the clock, the data lines carry the data for one pixel. The pixels are sent line-by-line.\
 In addition, there is a "handshake" mechanism. The master outputs a `TVALID` signal which is high only when it is sending valid data. The slave outputs a `TKEEP` signal which is high only when the slave is able to accept data. This `TKEEP` signal is a way for the slave to apply back-pressure: it can tell the master to slow down because it is unable to keep up. The master is only allowed to move on to the next pixel's data when both `TVALID` and `TKEEP` are high.\
 Finally, there are two additional synchronization signals. The master outputs a `TUSER` signal which is only high only for the first pixel of a frame. In addition, the master outputs a `TLAST` signal which is only high for the last pixel of each line.
 
-For the source of the video data, Xilinx provides the VDMA IP. The VDMA (Video Direct Memory Access) reads an image stored in the FPGA's DDR memory, and outputs it as an AXI4-Stream video. For simplicity, the VDMA will always output the same image, so that the video will be static, however, it can be configuredd to output video as well.
+For the source of the video data, Xilinx provides the VDMA IP. The VDMA (Video Direct Memory Access) reads an image stored in the FPGA's DDR memory, and outputs it as an AXI4-Stream video. For simplicity, we will configure the VDMA to always output the same image, however, it can be configured to output video as well.
 
 The ADV7511 supports many different features, and it must be configured before it can be used. For this purpose, the ADV7511 has an IIC (also known as I2C) connection. Like with the OLED, the ARM core is able to generate IIC signals, so it can be wired directly to the ADV7511.
 
 Finally, the goal is to have a system that runs at 1080p at 60 Hz. All of the IPs will be configured to operate at one pixel per clock cycle. For simplicity, everything will run on the same clock. In order to generate the right amount of throughput to send all of the pixels on time and to satisfy the blanking period, for 1080p at 60 Hz, we will need the clock to run at exactly 148.5 MHz (see [here](https://projectf.io/posts/video-timings-vga-720p-1080p/) for all the numbers).
 
 1. Double-click the Zynq to customize it.
-   1. In PS-PL Configuration, HP Slave AXI interface, enable S AXI HP0. This will be the port that the VDMA IP uses to read from DDR memory.\
+   1. In PS-PL Configuration, HP Slave AXI interface, enable S AXI HP0. This will be the data port that the VDMA IP will use to read the image from DDR memory.\
       ![HP Config](imgs/i17.png)
    2. In MIO Configuration, I/O Peripherals, enable I2C 0 connected to EMIO.\
       ![I2C Config](imgs/i18.png)
    3. Click OK and exit.
 2. The Zynq block now has new output connections.\
    ![Zynq Connections](imgs/i19.png)
-3. Left-click once on the IIC_0 port on the Zynq block, then right-click, select "Create Interface Port" and name it HD_IIC. They are connected to the ADV7511 IIC pins on lines 166-167 of the constraint file. Note: an easy way to get the full name of an interface port (`HD_IIC_scl_io` and `HD_IIC_sda_io`) is to create the HDL wrapper and look at the generated Verilog file.\
+3. Left-click once on the IIC_0 port on the Zynq block, then right-click, select "Create Interface Port" and name it HD_IIC. The port is connected to the ADV7511 IIC pins on lines 166-167 of the constraints file. Tip: an easy way to get the full name of an interface port (`HD_IIC_scl_io` and `HD_IIC_sda_io`) is to create the HDL wrapper and look at the generated Verilog file.\
    ![Left-click](imgs/i20.png)\
    ![Create Interface Port](imgs/i21.png)\
    ![I2C Wiring](imgs/i22.png)
-4. Add a Clocking Wizard IP. Double-click it to configure it. In Output Clocks set clock_out1 to be 148.5 MHz. At bottom of the Output Clocks page, disable the "reset" and "locked" output. Run connection automation to connect the Clocking Wizard to `sys_clock`.\
+4. Add a Clocking Wizard IP. Double-click it to configure it. In Output Clocks set `clock_out1` to be 148.5 MHz. At bottom of the Output Clocks page, disable the `reset` and `locked` outputs. Run connection automation to connect the Clocking Wizard to `sys_clock`.\
    ![Set Output Clock](imgs/i24.png)\
    ![Disable Ports](imgs/i25.png)\
    ![Clocking Wizard Connected](imgs/i26.png)
@@ -117,15 +117,15 @@ Finally, the goal is to have a system that runs at 1080p at 60 Hz. All of the IP
    ![Default/Constant Config](imgs/i31.png)
 8. The block design should now look like this.\
    ![Unconnected Block Design](imgs/i32.png)
-9. Connect the output of the Clocking Wizard to `M_AXI_GP0_ACLK` and `S_AXI_HP0_ACLK` on the Zynq block, to all three clock inputs on the VDMA, to `aclk` on the AXI4-Stram to Video Out, and to `clk` on the Video Timing Controller.\
+9. Connect the output of the Clocking Wizard to `M_AXI_GP0_ACLK` and `S_AXI_HP0_ACLK` on the Zynq block, to all three clock inputs on the VDMA, to `aclk` on the AXI4-Stream to Video Out, and to `clk` on the Video Timing Controller.\
    ![Clock Connection](imgs/i33.png)
 10. Connect the VDMA's `M_AXIS_MM2S` to `video_in` and the VTC's `vtiming_out` into `vtiming_in`.\
     ![AXI4-Stream Connect](imgs/i34.png)
 11. Run all connection automations.\
     ![Connection Automation](imgs/i35.png)
-12. You may need to manually connect the output of the reset block into the `resetn` input of the VTC and the `aresetn` input of the AXI4-Stram to Video Out.\
+12. You may need to manually connect the output of the reset block into the `resetn` input of the VTC and the `aresetn` input of the AXI4-Stream to Video Out.\
     ![Reset Connect](imgs/i36.png)
-13. Connect the `vtg_ce` output of the AXI4-Stram to Video Out IP to `gen_clken` on the VTC.\
+13. Connect the `vtg_ce` output of the AXI4-Stream to Video Out IP to `gen_clken` on the VTC.\
     ![Clock Enable Connect](imgs/i37.png)
 14. Right click on the block design and click Add Module. Add the `video_to_zedboard` module. Connect it.\
     ![Add Module](imgs/i38.png)\
@@ -141,7 +141,7 @@ Once the block design is done, import the hardware into Vitis, create a new empt
 
 To use the HDMI component, first pick the image that the device will display on the screen. Run the `image-to-memory-map.py` script, which will converts the provided image into a file called `image.h`. This file contains a memory map of the image. Include this `image.h` file in the sources.
 
-In addition, **the HDMI cable must be connected before flashing the bitstream**. The ADV7511 can only be activated if the cable is connected.
+In addition, **the HDMI cable must be connected before flashing the bitstream**. The ADV7511 can only be activated if the HDMI cable is connected.
 
 ### OLED Functions
 
@@ -150,7 +150,7 @@ All OLED-related functions are found in the `ps_emio.h`, `ps_emio.c` and `oled_f
 The files `ps_emio.h` and `ps_emio.c` implement the following three functions:
 - `int init_ps_emio()`. This function initializes the ARM core's SPI and GPIO controllers, and sends a turn-on command to the OLED display.
 - `void cleanup_ps_emio()`. This function sends a turn-off command to the OLED display.
-- `void oled_printstr(char *str)`. This function prints the null-terminated string `*str`. If the string is too long, it will be truncated.
+- `void oled_printstr(char *str)`. This function prints the null-terminated string `str`. If the string is too long, it will be truncated.
 
 The file `oled_font.h` describes the font to be displayed on the OLED.
 
@@ -159,12 +159,12 @@ The file `oled_font.h` describes the font to be displayed on the OLED.
 All HDMI-related functions are found in the `zed_hdmi.h` and `zed_hdmi.c` files.
 
 They implement the following functions:
-- `int init_hdmi_interface()`. This function intitializes the ARM core's I2C controller, and sends all the configuration information to the ADV7511.
+- `int init_hdmi_interface()`. This function initializes the ARM core's I2C controller, and sends all the configuration information to the ADV7511.
 - `void cleanup_hdmi_interface()`. This function sends a shutdown command to the ADV7511.
 
 Finally, the VDMA module is configured in the `main.c` file. It needs to know the address of the image to display, and the resolution.
 
-## Additonal Resources
+## Additional Resources
 
 The Xilinx Video IP ecosystem is described in detail in the [Xilinx Video Series](https://forums.xilinx.com/t5/Video-and-Audio/Xilinx-Video-Series/td-p/849583) of tutorials.
 
